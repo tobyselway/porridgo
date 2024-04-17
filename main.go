@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"image/png"
 	"os"
+	"porridgo/window"
+	"porridgo/window/glfw"
 	"runtime"
 	"strings"
 	"unsafe"
 
-	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/rajveermalviya/go-webgpu/wgpu"
-	wgpuext_glfw "github.com/rajveermalviya/go-webgpu/wgpuext/glfw"
 
 	_ "embed"
 )
@@ -127,7 +127,7 @@ func createTexels() (texels [(texelsSize * 4) * texelsSize]uint8) {
 	return texels
 }
 
-func InitState(window *glfw.Window) (s *State, err error) {
+func InitState(w window.Window) (s *State, err error) {
 	defer func() {
 		if err != nil {
 			s.Destroy()
@@ -138,7 +138,7 @@ func InitState(window *glfw.Window) (s *State, err error) {
 
 	s.instance = wgpu.CreateInstance(nil)
 
-	s.surface = s.instance.CreateSurface(wgpuext_glfw.GetSurfaceDescriptor(window))
+	s.surface = w.CreateSurface(s.instance)
 
 	adapter, err := s.instance.RequestAdapter(&wgpu.RequestAdapterOptions{
 		ForceFallbackAdapter: forceFallbackAdapter,
@@ -157,7 +157,7 @@ func InitState(window *glfw.Window) (s *State, err error) {
 
 	caps := s.surface.GetCapabilities(adapter)
 
-	width, height := window.GetSize()
+	width, height := w.Size()
 	s.config = &wgpu.SwapChainDescriptor{
 		Usage:       wgpu.TextureUsage_RenderAttachment,
 		Format:      caps.Formats[0],
@@ -394,40 +394,37 @@ func (s *State) Destroy() {
 }
 
 func main() {
-	if err := glfw.Init(); err != nil {
-		panic(err)
+	w := glfw.GLFWWindow{
+		Title:  "porridgo",
+		Width:  640,
+		Height: 480,
 	}
-	defer glfw.Terminate()
-
-	glfw.WindowHint(glfw.ClientAPI, glfw.NoAPI)
-	window, err := glfw.CreateWindow(640, 480, "porridgo", nil, nil)
+	err := w.Open()
 	if err != nil {
 		panic(err)
 	}
-	defer window.Destroy()
+	defer w.Destroy()
 
-	s, err := InitState(window)
+	s, err := InitState(&w)
 	if err != nil {
 		panic(err)
 	}
 	defer s.Destroy()
 
-	window.SetKeyCallback(func(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
+	w.OnKeyEvent(func(key window.Key, scancode int, action window.Action, modifier window.ModifierKey) {
 		// Print resource usage on pressing 'R'
-		if key == glfw.KeyR && (action == glfw.Press || action == glfw.Repeat) {
+		if key == window.KeyR && (action == window.Press || action == window.Repeat) {
 			report := s.instance.GenerateReport()
 			buf, _ := json.MarshalIndent(report, "", "  ")
 			fmt.Print(string(buf))
 		}
 	})
 
-	window.SetSizeCallback(func(_ *glfw.Window, width, height int) {
+	w.OnResize(func(width int, height int) {
 		s.Resize(width, height)
 	})
 
-	for !window.ShouldClose() {
-		glfw.PollEvents()
-
+	w.Run(func() {
 		err := s.Render()
 		if err != nil {
 			fmt.Println("error occured while rendering:", err)
@@ -441,5 +438,5 @@ func main() {
 				panic(err)
 			}
 		}
-	}
+	})
 }
