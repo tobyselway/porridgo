@@ -1,11 +1,15 @@
 package window
 
-import "github.com/rajveermalviya/go-webgpu/wgpu"
+import (
+	"porridgo/lifecycle"
+
+	"github.com/rajveermalviya/go-webgpu/wgpu"
+)
 
 type Window interface {
-	Open() error
+	lifecycle.RequiresCleanup
 
-	Destroy()
+	Open() error
 
 	OnResize(callback func(int, int))
 

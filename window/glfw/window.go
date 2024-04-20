@@ -17,19 +17,20 @@ type GLFWWindow struct {
 
 func (w *GLFWWindow) Open() error {
 	if err := glfw.Init(); err != nil {
-		return fmt.Errorf("initializing glfw: %v", err)
+		return fmt.Errorf("initializing glfw: %w", err)
 	}
 
 	glfw.WindowHint(glfw.ClientAPI, glfw.NoAPI)
 	window, err := glfw.CreateWindow(w.Width, w.Height, w.Title, nil, nil)
 	if err != nil {
-		return fmt.Errorf("creating glfw window: %v", err)
+		return fmt.Errorf("creating glfw window: %w", err)
 	}
 	w.handle = window
 	return nil
 }
 
-func (w *GLFWWindow) Destroy() {
+func (w *GLFWWindow) Cleanup() {
+	// Defenestrate
 	w.handle.Destroy()
 	glfw.Terminate()
 }
