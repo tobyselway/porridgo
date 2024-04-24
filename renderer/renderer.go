@@ -3,6 +3,7 @@ package renderer
 import (
 	_ "embed"
 	"porridgo/datatypes"
+	"porridgo/texture"
 	"porridgo/window"
 	"unsafe"
 
@@ -10,24 +11,29 @@ import (
 )
 
 type Renderer struct {
-	config           Config
-	window           window.Window
-	instance         *wgpu.Instance
-	surface          *wgpu.Surface
-	swapChain        *wgpu.SwapChain
-	device           *wgpu.Device
-	queue            *wgpu.Queue
-	swapChainConfig  *wgpu.SwapChainDescriptor
-	renderPipeline   *wgpu.RenderPipeline
-	vertexBuf        *wgpu.Buffer
-	indexBuf         *wgpu.Buffer
-	diffuseBindGroup *wgpu.BindGroup
+	config            Config
+	window            window.Window
+	instance          *wgpu.Instance
+	surface           *wgpu.Surface
+	swapChain         *wgpu.SwapChain
+	device            *wgpu.Device
+	queue             *wgpu.Queue
+	swapChainConfig   *wgpu.SwapChainDescriptor
+	renderPipeline    *wgpu.RenderPipeline
+	vertexBuf         *wgpu.Buffer
+	indexBuf          *wgpu.Buffer
+	diffuseBindGroup1 *wgpu.BindGroup
+	diffuseBindGroup2 *wgpu.BindGroup
 }
 
 func (r *Renderer) Cleanup() {
-	if r.diffuseBindGroup != nil {
-		r.diffuseBindGroup.Release()
-		r.diffuseBindGroup = nil
+	if r.diffuseBindGroup1 != nil {
+		r.diffuseBindGroup1.Release()
+		r.diffuseBindGroup1 = nil
+	}
+	if r.diffuseBindGroup2 != nil {
+		r.diffuseBindGroup2.Release()
+		r.diffuseBindGroup2 = nil
 	}
 	if r.renderPipeline != nil {
 		r.renderPipeline.Release()
@@ -80,15 +86,35 @@ var VertexBufferLayout = wgpu.VertexBufferLayout{
 }
 
 var vertexData = [...]datatypes.Vertex{
-	datatypes.NewVertex(-1, -1, 0, 1, 1), // TL
-	datatypes.NewVertex(1, -1, 0, 0, 1),  // TR
-	datatypes.NewVertex(-1, 1, 0, 1, 0),  // BL
-	datatypes.NewVertex(1, 1, 0, 0, 0),   // BR
+	datatypes.NewVertex(-1, -1, 0, 0, 1), // TL
+	datatypes.NewVertex(1, -1, 0, 1, 1),  // TR
+	datatypes.NewVertex(-1, 1, 0, 0, 0),  // BL
+	datatypes.NewVertex(1, 1, 0, 1, 0),   // BR
 }
 
 var indexData = [...]uint16{
 	0, 2, 1,
 	1, 2, 3,
+}
+
+func textureBindGroupFromPNG(device *wgpu.Device, queue *wgpu.Queue, layout *wgpu.BindGroupLayout, filename string) (*wgpu.BindGroup, error) {
+	image, err := datatypes.ImageFromPNG(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	texture, err := texture.FromImage(device, queue, image, "Diffuse Texture ("+filename+")")
+	if err != nil {
+		return nil, err
+	}
+	defer texture.Cleanup()
+
+	bindGroup, err := texture.CreateBindGroup(device, layout, "Diffuse Bind Group ("+filename+")")
+	if err != nil {
+		return nil, err
+	}
+
+	return bindGroup, nil
 }
 
 //go:embed shaders/shader.wgsl
@@ -160,111 +186,14 @@ func CreateRenderer(w window.Window, config Config) (r *Renderer, err error) {
 		return r, err
 	}
 
-	image, err := datatypes.ImageFromPNG("assets/go.png")
-	if err != nil {
-		return r, err
-	}
-	textureExtent := wgpu.Extent3D{
-		Width:              image.Width,
-		Height:             image.Height,
-		DepthOrArrayLayers: 1,
-	}
-	texture, err := r.device.CreateTexture(&wgpu.TextureDescriptor{
-		Size:          textureExtent,
-		MipLevelCount: 1,
-		SampleCount:   1,
-		Dimension:     wgpu.TextureDimension_2D,
-		Format:        wgpu.TextureFormat_RGBA8UnormSrgb,
-		Usage:         wgpu.TextureUsage_TextureBinding | wgpu.TextureUsage_CopyDst,
-	})
-	if err != nil {
-		return r, err
-	}
-	defer texture.Release()
-
-	r.queue.WriteTexture(
-		texture.AsImageCopy(),
-		wgpu.ToBytes(image.Pixels[:]),
-		&wgpu.TextureDataLayout{
-			Offset:       0,
-			BytesPerRow:  image.Width * 4,
-			RowsPerImage: image.Height,
-		},
-		&textureExtent,
-	)
-
-	if err != nil {
-		return r, err
-	}
-
-	diffuseTextureView, err := texture.CreateView(nil)
-	if err != nil {
-		return r, err
-	}
-	defer diffuseTextureView.Release()
-
-	diffuseSampler, err := r.device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:          "Diffuse Sampler",
-		AddressModeU:   wgpu.AddressMode_ClampToEdge,
-		AddressModeV:   wgpu.AddressMode_ClampToEdge,
-		AddressModeW:   wgpu.AddressMode_ClampToEdge,
-		MagFilter:      wgpu.FilterMode_Linear,
-		MinFilter:      wgpu.FilterMode_Linear,
-		MipmapFilter:   wgpu.MipmapFilterMode_Nearest,
-		LodMinClamp:    0.0,
-		LodMaxClamp:    32.0,
-		Compare:        wgpu.CompareFunction_Undefined,
-		MaxAnisotrophy: 1,
-	})
-	if err != nil {
-		return r, err
-	}
-	defer diffuseSampler.Release()
-
-	textureBindGroupLayout, err := r.device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: "Texture Bind Group Layout",
-		Entries: []wgpu.BindGroupLayoutEntry{
-			{
-				Binding:    0,
-				Visibility: wgpu.ShaderStage_Fragment,
-				Texture: wgpu.TextureBindingLayout{
-					Multisampled:  false,
-					ViewDimension: wgpu.TextureViewDimension_2D,
-					SampleType:    wgpu.TextureSampleType_Float,
-				},
-			},
-			{
-				Binding:    1,
-				Visibility: wgpu.ShaderStage_Fragment,
-				Sampler: wgpu.SamplerBindingLayout{
-					Type: wgpu.SamplerBindingType_Filtering,
-				},
-			},
-		},
-	})
+	textureBindGroupLayout, err := texture.CreateBindGroupLayout(r.device, "Texture Bind Group Layout")
 	if err != nil {
 		return r, err
 	}
 	defer textureBindGroupLayout.Release()
 
-	r.diffuseBindGroup, err = r.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
-		Label:  "Diffuse Bind Group",
-		Layout: textureBindGroupLayout,
-		Entries: []wgpu.BindGroupEntry{
-			{
-				Binding:     0,
-				TextureView: diffuseTextureView,
-				// Size:        wgpu.WholeSize,
-			},
-			{
-				Binding: 1,
-				Sampler: diffuseSampler,
-			},
-		},
-	})
-	if err != nil {
-		return r, err
-	}
+	r.diffuseBindGroup1, err = textureBindGroupFromPNG(r.device, r.queue, textureBindGroupLayout, "assets/go.png")
+	r.diffuseBindGroup2, err = textureBindGroupFromPNG(r.device, r.queue, textureBindGroupLayout, "assets/go2.png")
 
 	shader, err := r.device.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
 		Label:          "shader.wgsl",
@@ -347,7 +276,7 @@ func (r *Renderer) Resize(width int, height int) {
 	}
 }
 
-func (r *Renderer) Render() error {
+func (r *Renderer) Render(spacePressed bool) error {
 	nextTexture, err := r.swapChain.GetCurrentTextureView()
 	if err != nil {
 		return err
@@ -373,7 +302,11 @@ func (r *Renderer) Render() error {
 	defer renderPass.Release()
 
 	renderPass.SetPipeline(r.renderPipeline)
-	renderPass.SetBindGroup(0, r.diffuseBindGroup, nil)
+	if spacePressed {
+		renderPass.SetBindGroup(0, r.diffuseBindGroup2, nil)
+	} else {
+		renderPass.SetBindGroup(0, r.diffuseBindGroup1, nil)
+	}
 	renderPass.SetVertexBuffer(0, r.vertexBuf, 0, wgpu.WholeSize)
 	renderPass.SetIndexBuffer(r.indexBuf, wgpu.IndexFormat_Uint16, 0, wgpu.WholeSize)
 	renderPass.DrawIndexed(uint32(len(indexData)), 1, 0, 0, 0)

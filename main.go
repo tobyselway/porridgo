@@ -28,15 +28,23 @@ func main() {
 	}
 	defer r.Cleanup()
 
+	spacePressed := false
+
 	w.OnKeyEvent(func(key window.Key, scancode int, action window.Action, modifier window.ModifierKey) {
 		// Print resource usage on pressing 'R'
 		if key == window.KeyR && (action == window.Press || action == window.Repeat) {
 			r.PrintReport()
 		}
+
+		if key == window.KeySpace && (action == window.Press || action == window.Repeat) {
+			spacePressed = true
+		} else {
+			spacePressed = false
+		}
 	})
 
 	w.Run(func() {
-		err := r.Render()
+		err := r.Render(spacePressed)
 		if err != nil {
 			fmt.Println("error occured while rendering:", err)
 
