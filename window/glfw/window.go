@@ -2,6 +2,7 @@ package glfw
 
 import (
 	"fmt"
+	"math"
 
 	"porridgo/window"
 
@@ -45,6 +46,11 @@ func (w *GLFWWindow) OnKeyEvent(callback func(window.Key, int, window.Action, wi
 	w.handle.SetKeyCallback(func(_ *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
 		callback(keyMapping[key], scancode, actionMapping[action], modifierKeyMapping[mods])
 	})
+}
+
+func (w GLFWWindow) Cursor() (int, int) {
+	x, y := w.handle.GetCursorPos()
+	return int(math.Floor(x)), int(math.Floor(y))
 }
 
 func (w GLFWWindow) Size() (int, int) {

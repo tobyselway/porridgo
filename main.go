@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"porridgo/camera"
+	"porridgo/datatypes"
 	"porridgo/renderer"
 	"porridgo/window"
 	glfw_window "porridgo/window/glfw"
@@ -22,11 +24,25 @@ func main() {
 	}
 	defer w.Cleanup()
 
-	r, err := renderer.CreateRenderer(&w, renderer.Config{})
+	cam := camera.Camera{
+		Position: datatypes.NewVec3f(0.0, 0.0, -2.0),
+		Rotation: datatypes.NewVec3f(0.0, 0.0, 0.0),
+		Aspect:   float32(w.Width) / float32(w.Height),
+		FovY:     45.0,
+		ZNear:    0.1,
+		ZFar:     100.0,
+	}
+
+	r, err := renderer.CreateRenderer(&w, &cam, renderer.Config{})
 	if err != nil {
 		panic(err)
 	}
 	defer r.Cleanup()
+
+	camController := camera.Controller{
+		Camera: &cam,
+		Speed:  0.1,
+	}
 
 	spacePressed := false
 
@@ -41,9 +57,14 @@ func main() {
 		} else {
 			spacePressed = false
 		}
+
+		camController.ProcessKey(key, action, modifier)
 	})
 
 	w.Run(func() {
+		cursorX, cursorY := w.Cursor()
+		camController.ProcessMouse(float32(cursorX)/float32(w.Width), float32(cursorY)/float32(w.Height))
+		camController.UpdateCamera()
 		err := r.Render(spacePressed)
 		if err != nil {
 			fmt.Println("error occured while rendering:", err)

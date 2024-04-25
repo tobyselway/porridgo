@@ -20,4 +20,6 @@ type Window interface {
 	Run(tickCallback func()) error
 
 	CreateSurface(instance *wgpu.Instance) *wgpu.Surface
+
+	Cursor() (int, int)
 }
