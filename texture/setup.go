@@ -1,19 +1,19 @@
 package texture
 
 import (
-	"porridgo/datatypes"
+	"porridgo/label"
 
 	"github.com/rajveermalviya/go-webgpu/wgpu"
 )
 
-func FromImage(device *wgpu.Device, queue *wgpu.Queue, image *datatypes.Image, label string) (*Texture, error) {
+func (t *Texture) SetupTexture(device *wgpu.Device, queue *wgpu.Queue) error {
 	textureExtent := wgpu.Extent3D{
-		Width:              image.Width,
-		Height:             image.Height,
+		Width:              t.image.Width,
+		Height:             t.image.Height,
 		DepthOrArrayLayers: 1,
 	}
 	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
-		Label:         label,
+		Label:         label.Label(t, "Texture"),
 		Size:          textureExtent,
 		MipLevelCount: 1,
 		SampleCount:   1,
@@ -22,30 +22,30 @@ func FromImage(device *wgpu.Device, queue *wgpu.Queue, image *datatypes.Image, l
 		Usage:         wgpu.TextureUsage_TextureBinding | wgpu.TextureUsage_CopyDst,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	err = queue.WriteTexture(
 		texture.AsImageCopy(),
-		wgpu.ToBytes(image.Pixels[:]),
+		wgpu.ToBytes(t.image.Pixels[:]),
 		&wgpu.TextureDataLayout{
 			Offset:       0,
-			BytesPerRow:  image.Width * 4,
-			RowsPerImage: image.Height,
+			BytesPerRow:  t.image.Width * 4,
+			RowsPerImage: t.image.Height,
 		},
 		&textureExtent,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	view, err := texture.CreateView(nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	sampler, err := device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:          "Diffuse Sampler",
+		Label:          label.Label(t, "Diffuse Sampler"),
 		AddressModeU:   wgpu.AddressMode_ClampToEdge,
 		AddressModeV:   wgpu.AddressMode_ClampToEdge,
 		AddressModeW:   wgpu.AddressMode_ClampToEdge,
@@ -58,12 +58,12 @@ func FromImage(device *wgpu.Device, queue *wgpu.Queue, image *datatypes.Image, l
 		MaxAnisotrophy: 1,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &Texture{
-		Texture: texture,
-		View:    view,
-		Sampler: sampler,
-	}, nil
+	t.Texture = texture
+	t.View = view
+	t.Sampler = sampler
+
+	return nil
 }

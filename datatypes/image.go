@@ -7,9 +7,10 @@ import (
 )
 
 type Image struct {
-	Pixels []byte
-	Width  uint32
-	Height uint32
+	Filename string
+	Pixels   []byte
+	Width    uint32
+	Height   uint32
 }
 
 func ImageFromPNG(filename string) (*Image, error) {
@@ -42,8 +43,9 @@ func ImageFromPNG(filename string) (*Image, error) {
 	}
 
 	return &Image{
-		Pixels: texels,
-		Width:  uint32(width),
-		Height: uint32(height),
+		Filename: filename,
+		Pixels:   texels,
+		Width:    uint32(width),
+		Height:   uint32(height),
 	}, nil
 }

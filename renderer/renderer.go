@@ -12,41 +12,34 @@ import (
 )
 
 type Renderer struct {
-	config            Config
-	window            window.Window
-	instance          *wgpu.Instance
-	surface           *wgpu.Surface
-	swapChain         *wgpu.SwapChain
-	device            *wgpu.Device
-	queue             *wgpu.Queue
-	swapChainConfig   *wgpu.SwapChainDescriptor
-	renderPipeline    *wgpu.RenderPipeline
-	vertexBuf         *wgpu.Buffer
-	indexBuf          *wgpu.Buffer
-	diffuseBindGroup1 *wgpu.BindGroup
-	diffuseBindGroup2 *wgpu.BindGroup
-	camera            *camera.Camera
-	cameraUniform     camera.Uniform
-	cameraBuf         *wgpu.Buffer
-	cameraBindGroup   *wgpu.BindGroup
+	config          Config
+	window          window.Window
+	instance        *wgpu.Instance
+	surface         *wgpu.Surface
+	swapChain       *wgpu.SwapChain
+	device          *wgpu.Device
+	queue           *wgpu.Queue
+	swapChainConfig *wgpu.SwapChainDescriptor
+	renderPipeline  *wgpu.RenderPipeline
+	vertexBuf       *wgpu.Buffer
+	indexBuf        *wgpu.Buffer
+	texture1        *texture.Texture
+	texture2        *texture.Texture
+	camera          *camera.Camera
 }
 
 func (r *Renderer) Cleanup() {
-	if r.cameraBindGroup != nil {
-		r.cameraBindGroup.Release()
-		r.cameraBindGroup = nil
+	if r.camera != nil {
+		r.camera.Cleanup()
+		r.camera = nil
 	}
-	if r.cameraBuf != nil {
-		r.cameraBuf.Release()
-		r.cameraBuf = nil
+	if r.texture1 != nil {
+		r.texture1.Cleanup()
+		r.texture1 = nil
 	}
-	if r.diffuseBindGroup1 != nil {
-		r.diffuseBindGroup1.Release()
-		r.diffuseBindGroup1 = nil
-	}
-	if r.diffuseBindGroup2 != nil {
-		r.diffuseBindGroup2.Release()
-		r.diffuseBindGroup2 = nil
+	if r.texture2 != nil {
+		r.texture2.Cleanup()
+		r.texture2 = nil
 	}
 	if r.renderPipeline != nil {
 		r.renderPipeline.Release()
@@ -112,30 +105,10 @@ var indexData = [...]uint16{
 	2, 3, 4,
 }
 
-func textureBindGroupFromPNG(device *wgpu.Device, queue *wgpu.Queue, layout *wgpu.BindGroupLayout, filename string) (*wgpu.BindGroup, error) {
-	image, err := datatypes.ImageFromPNG(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	texture, err := texture.FromImage(device, queue, image, "Diffuse Texture ("+filename+")")
-	if err != nil {
-		return nil, err
-	}
-	defer texture.Cleanup()
-
-	bindGroup, err := texture.CreateBindGroup(device, layout, "Diffuse Bind Group ("+filename+")")
-	if err != nil {
-		return nil, err
-	}
-
-	return bindGroup, nil
-}
-
 //go:embed shaders/shader.wgsl
 var shader string
 
-func CreateRenderer(w window.Window, cam *camera.Camera, config Config) (r *Renderer, err error) {
+func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, tex2 *texture.Texture, config Config) (r *Renderer, err error) {
 	defer func() {
 		if err != nil {
 			r.Cleanup()
@@ -148,6 +121,8 @@ func CreateRenderer(w window.Window, cam *camera.Camera, config Config) (r *Rend
 	}
 
 	r.camera = cam
+	r.texture1 = tex1
+	r.texture2 = tex2
 
 	r.instance = wgpu.CreateInstance(nil)
 
@@ -203,37 +178,48 @@ func CreateRenderer(w window.Window, cam *camera.Camera, config Config) (r *Rend
 		return r, err
 	}
 
-	textureBindGroupLayout, err := texture.CreateBindGroupLayout(r.device, "Texture Bind Group Layout")
+	err = texture.SetupBindGroupLayout(r.device)
 	if err != nil {
 		return r, err
 	}
-	defer textureBindGroupLayout.Release()
+	defer texture.CleanupBindGroupLayout()
 
-	r.diffuseBindGroup1, err = textureBindGroupFromPNG(r.device, r.queue, textureBindGroupLayout, "assets/go.png")
-	r.diffuseBindGroup2, err = textureBindGroupFromPNG(r.device, r.queue, textureBindGroupLayout, "assets/go2.png")
-
-	cameraBindGroupLayout, err := camera.CreateBindGroupLayout(r.device, "Camera Bind Group Layout")
+	err = camera.SetupBindGroupLayout(r.device)
 	if err != nil {
 		return r, err
 	}
-	defer cameraBindGroupLayout.Release()
+	defer camera.CleanupBindGroupLayout()
 
-	r.cameraUniform = camera.NewUniform()
-	err = r.cameraUniform.Update(r.camera)
+	err = r.texture1.SetupTexture(r.device, r.queue)
 	if err != nil {
 		return r, err
 	}
-
-	r.cameraBuf, err = r.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
-		Label:    "Camera Buffer",
-		Contents: wgpu.ToBytes([]camera.Uniform{r.cameraUniform}),
-		Usage:    wgpu.BufferUsage_Uniform | wgpu.BufferUsage_CopyDst,
-	})
+	err = r.texture1.CreateBindGroup(r.device)
 	if err != nil {
 		return r, err
 	}
 
-	r.cameraBindGroup, err = r.camera.CreateBindGroup(r.device, cameraBindGroupLayout, r.cameraBuf, "Camera Bind Group")
+	err = r.texture2.SetupTexture(r.device, r.queue)
+	if err != nil {
+		return r, err
+	}
+	err = r.texture2.CreateBindGroup(r.device)
+	if err != nil {
+		return r, err
+	}
+
+	r.camera.SetupUniform()
+	err = r.camera.UpdateUniform()
+	if err != nil {
+		return r, err
+	}
+
+	err = r.camera.SetupBuffer(r.device)
+	if err != nil {
+		return r, err
+	}
+
+	err = r.camera.CreateBindGroup(r.device)
 	if err != nil {
 		return r, err
 	}
@@ -250,8 +236,8 @@ func CreateRenderer(w window.Window, cam *camera.Camera, config Config) (r *Rend
 	renderPipelineLayout, err := r.device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label: "Render Pipeline Layout",
 		BindGroupLayouts: []*wgpu.BindGroupLayout{
-			textureBindGroupLayout,
-			cameraBindGroupLayout,
+			texture.BindGroupLayout,
+			camera.BindGroupLayout,
 		},
 		PushConstantRanges: []wgpu.PushConstantRange{},
 	})
@@ -347,16 +333,20 @@ func (r *Renderer) Render(spacePressed bool) error {
 
 	renderPass.SetPipeline(r.renderPipeline)
 
+	// for renderable := range renderables {
+	// 	renderable.UpdateUniforms(r.queue)
+	// 	renderable.SetBindGroups(renderPass)
+	// }
+
 	if spacePressed {
-		renderPass.SetBindGroup(0, r.diffuseBindGroup2, nil)
+		r.texture2.SetBindGroup(renderPass)
 	} else {
-		renderPass.SetBindGroup(0, r.diffuseBindGroup1, nil)
+		r.texture1.SetBindGroup(renderPass)
 	}
 
-	r.cameraUniform.Update(r.camera)
-	r.queue.WriteBuffer(r.cameraBuf, 0, wgpu.ToBytes([]camera.Uniform{r.cameraUniform}))
-
-	renderPass.SetBindGroup(1, r.cameraBindGroup, nil)
+	r.camera.UpdateUniform()
+	r.camera.WriteBuffer(r.queue)
+	r.camera.SetBindGroup(renderPass)
 
 	renderPass.SetVertexBuffer(0, r.vertexBuf, 0, wgpu.WholeSize)
 	renderPass.SetIndexBuffer(r.indexBuf, wgpu.IndexFormat_Uint16, 0, wgpu.WholeSize)

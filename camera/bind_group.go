@@ -1,10 +1,21 @@
 package camera
 
-import "github.com/rajveermalviya/go-webgpu/wgpu"
+import (
+	"fmt"
+	"porridgo/label"
 
-func CreateBindGroupLayout(device *wgpu.Device, label string) (*wgpu.BindGroupLayout, error) {
-	return device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: label,
+	"github.com/rajveermalviya/go-webgpu/wgpu"
+)
+
+var BindGroupLayout *wgpu.BindGroupLayout = nil
+
+func SetupBindGroupLayout(device *wgpu.Device) error {
+	if BindGroupLayout != nil {
+		return fmt.Errorf("bind group layout already created")
+	}
+	var err error = nil
+	BindGroupLayout, err = device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
+		Label: "Camera Bind Group Layout",
 		Entries: []wgpu.BindGroupLayoutEntry{
 			{
 				Binding:    0,
@@ -17,18 +28,30 @@ func CreateBindGroupLayout(device *wgpu.Device, label string) (*wgpu.BindGroupLa
 			},
 		},
 	})
+	return err
 }
 
-func (c *Camera) CreateBindGroup(device *wgpu.Device, layout *wgpu.BindGroupLayout, buffer *wgpu.Buffer, label string) (*wgpu.BindGroup, error) {
-	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
-		Label:  label,
-		Layout: layout,
+func (c *Camera) CreateBindGroup(device *wgpu.Device) error {
+	var err error
+	c.bindGroup, err = device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:  label.Label(c, "Bind Group"),
+		Layout: BindGroupLayout,
 		Entries: []wgpu.BindGroupEntry{
 			{
 				Binding: 0,
-				Buffer:  buffer,
-				Size:    buffer.GetSize(),
+				Buffer:  c.buffer,
+				Size:    c.buffer.GetSize(),
 			},
 		},
 	})
+	return err
+}
+
+func CleanupBindGroupLayout() {
+	BindGroupLayout.Release()
+	BindGroupLayout = nil
+}
+
+func (c *Camera) SetBindGroup(renderPass *wgpu.RenderPassEncoder) {
+	renderPass.SetBindGroup(1, c.bindGroup, nil)
 }

@@ -5,6 +5,7 @@ import (
 	"porridgo/camera"
 	"porridgo/datatypes"
 	"porridgo/renderer"
+	"porridgo/texture"
 	"porridgo/window"
 	glfw_window "porridgo/window/glfw"
 	"strings"
@@ -33,7 +34,17 @@ func main() {
 		ZFar:     100.0,
 	}
 
-	r, err := renderer.CreateRenderer(&w, &cam, renderer.Config{})
+	tex1, err := texture.FromPNG("assets/go.png")
+	if err != nil {
+		panic(err)
+	}
+
+	tex2, err := texture.FromPNG("assets/go2.png")
+	if err != nil {
+		panic(err)
+	}
+
+	r, err := renderer.CreateRenderer(&w, &cam, &tex1, &tex2, renderer.Config{})
 	if err != nil {
 		panic(err)
 	}

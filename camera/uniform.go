@@ -10,19 +10,19 @@ type Uniform struct {
 	Projection datatypes.Mat4f
 }
 
-func NewUniform() Uniform {
-	return Uniform{
+func (c *Camera) SetupUniform() {
+	c.uniform = Uniform{
 		View:       datatypes.Identity(),
 		Projection: datatypes.Identity(),
 	}
 }
 
-func (u *Uniform) Update(camera *Camera) error {
-	u.View = camera.BuildViewMatrix()
-	projMat, err := camera.BuildProjectionMatrix()
+func (c *Camera) UpdateUniform() error {
+	c.uniform.View = c.BuildViewMatrix()
+	projMat, err := c.BuildProjectionMatrix()
 	if err != nil {
 		return fmt.Errorf("updating camera uniform: %w", err)
 	}
-	u.Projection = projMat
+	c.uniform.Projection = projMat
 	return nil
 }

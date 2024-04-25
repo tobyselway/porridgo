@@ -1,10 +1,21 @@
 package texture
 
-import "github.com/rajveermalviya/go-webgpu/wgpu"
+import (
+	"fmt"
+	"porridgo/label"
 
-func CreateBindGroupLayout(device *wgpu.Device, label string) (*wgpu.BindGroupLayout, error) {
-	return device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: label,
+	"github.com/rajveermalviya/go-webgpu/wgpu"
+)
+
+var BindGroupLayout *wgpu.BindGroupLayout = nil
+
+func SetupBindGroupLayout(device *wgpu.Device) error {
+	if BindGroupLayout != nil {
+		return fmt.Errorf("bind group layout already created")
+	}
+	var err error = nil
+	BindGroupLayout, err = device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
+		Label: "Texture Bind Group Layout",
 		Entries: []wgpu.BindGroupLayoutEntry{
 			{
 				Binding:    0,
@@ -24,12 +35,19 @@ func CreateBindGroupLayout(device *wgpu.Device, label string) (*wgpu.BindGroupLa
 			},
 		},
 	})
+	return err
 }
 
-func (t *Texture) CreateBindGroup(device *wgpu.Device, layout *wgpu.BindGroupLayout, label string) (*wgpu.BindGroup, error) {
-	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
-		Label:  label,
-		Layout: layout,
+func CleanupBindGroupLayout() {
+	BindGroupLayout.Release()
+	BindGroupLayout = nil
+}
+
+func (t *Texture) CreateBindGroup(device *wgpu.Device) error {
+	var err error
+	t.bindGroup, err = device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:  label.Label(t, "Bind Group"),
+		Layout: BindGroupLayout,
 		Entries: []wgpu.BindGroupEntry{
 			{
 				Binding:     0,
@@ -41,4 +59,9 @@ func (t *Texture) CreateBindGroup(device *wgpu.Device, layout *wgpu.BindGroupLay
 			},
 		},
 	})
+	return err
+}
+
+func (t *Texture) SetBindGroup(renderPass *wgpu.RenderPassEncoder) {
+	renderPass.SetBindGroup(0, t.bindGroup, nil)
 }

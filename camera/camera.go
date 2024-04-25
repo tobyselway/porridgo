@@ -3,15 +3,25 @@ package camera
 import (
 	"fmt"
 	"porridgo/datatypes"
+
+	"github.com/rajveermalviya/go-webgpu/wgpu"
 )
 
 type Camera struct {
-	Position datatypes.Vec3f
-	Rotation datatypes.Vec3f
-	Aspect   float32
-	FovY     float32
-	ZNear    float32
-	ZFar     float32
+	Position  datatypes.Vec3f
+	Rotation  datatypes.Vec3f
+	Aspect    float32
+	FovY      float32
+	ZNear     float32
+	ZFar      float32
+	bindGroup *wgpu.BindGroup
+	uniform   Uniform
+	buffer    *wgpu.Buffer
+}
+
+func (c *Camera) Cleanup() {
+	defer c.bindGroup.Release()
+	defer c.buffer.Release()
 }
 
 var OPENGL_TO_WGPU_MATRIX datatypes.Mat4f = datatypes.NewMat4f(
