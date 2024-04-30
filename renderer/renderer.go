@@ -4,9 +4,10 @@ import (
 	_ "embed"
 	"porridgo/camera"
 	"porridgo/datatypes"
+	"porridgo/instance"
 	"porridgo/texture"
+	"porridgo/vertex"
 	"porridgo/window"
-	"unsafe"
 
 	"github.com/rajveermalviya/go-webgpu/wgpu"
 )
@@ -14,7 +15,7 @@ import (
 type Renderer struct {
 	config          Config
 	window          window.Window
-	instance        *wgpu.Instance
+	wgpuInstance    *wgpu.Instance
 	surface         *wgpu.Surface
 	swapChain       *wgpu.SwapChain
 	device          *wgpu.Device
@@ -26,6 +27,8 @@ type Renderer struct {
 	texture1        *texture.Texture
 	texture2        *texture.Texture
 	camera          *camera.Camera
+	instances       []instance.Instance
+	instanceBuf     *wgpu.Buffer
 }
 
 func (r *Renderer) Cleanup() {
@@ -74,29 +77,12 @@ func (r *Renderer) Cleanup() {
 	}
 }
 
-var VertexBufferLayout = wgpu.VertexBufferLayout{
-	ArrayStride: uint64(unsafe.Sizeof(datatypes.Vertex{})),
-	StepMode:    wgpu.VertexStepMode_Vertex,
-	Attributes: []wgpu.VertexAttribute{
-		{
-			Format:         wgpu.VertexFormat_Float32x3,
-			Offset:         0,
-			ShaderLocation: 0,
-		},
-		{
-			Format:         wgpu.VertexFormat_Float32x2,
-			Offset:         uint64(unsafe.Sizeof([3]float32{})),
-			ShaderLocation: 1,
-		},
-	},
-}
-
-var vertexData = [...]datatypes.Vertex{
-	datatypes.NewVertex(-0.0868241, 0.49240386, 0.0, 0.4131759, 0.00759614),     // A
-	datatypes.NewVertex(-0.49513406, 0.06958647, 0.0, 0.0048659444, 0.43041354), // B
-	datatypes.NewVertex(-0.21918549, -0.44939706, 0.0, 0.28081453, 0.949397),    // C
-	datatypes.NewVertex(0.35966998, -0.3473291, 0.0, 0.85967, 0.84732914),       // D
-	datatypes.NewVertex(0.44147372, 0.2347359, 0.0, 0.9414737, 0.2652641),       // E
+var vertexData = [...]vertex.Vertex{
+	vertex.NewVertex(-0.0868241, 0.49240386, 0.0, 0.4131759, 0.00759614),     // A
+	vertex.NewVertex(-0.49513406, 0.06958647, 0.0, 0.0048659444, 0.43041354), // B
+	vertex.NewVertex(-0.21918549, -0.44939706, 0.0, 0.28081453, 0.949397),    // C
+	vertex.NewVertex(0.35966998, -0.3473291, 0.0, 0.85967, 0.84732914),       // D
+	vertex.NewVertex(0.44147372, 0.2347359, 0.0, 0.9414737, 0.2652641),       // E
 }
 
 var indexData = [...]uint16{
@@ -107,6 +93,29 @@ var indexData = [...]uint16{
 
 //go:embed shaders/shader.wgsl
 var shader string
+
+const NUM_INSTANCES_PER_ROW uint32 = 10
+
+var INSTANCE_DISPLACEMENT datatypes.Vec3f = datatypes.NewVec3f(
+	float32(NUM_INSTANCES_PER_ROW)*0.5,
+	0.0,
+	float32(NUM_INSTANCES_PER_ROW)*0.5,
+)
+
+func GenerateInstances() []instance.Instance {
+	instances := []instance.Instance{}
+	for z := 0; z < int(NUM_INSTANCES_PER_ROW); z++ {
+		for x := 0; x < int(NUM_INSTANCES_PER_ROW); x++ {
+			position := datatypes.NewVec3f(float32(x), 0.0, float32(z)).Sub(INSTANCE_DISPLACEMENT)
+			instances = append(instances, instance.Instance{
+				Position: position,
+				Scale:    datatypes.NewVec3f(1.0, 1.0, 1.0),
+				Rotation: datatypes.NewVec3f(0.0, 0.0, 0.0),
+			})
+		}
+	}
+	return instances
+}
 
 func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, tex2 *texture.Texture, config Config) (r *Renderer, err error) {
 	defer func() {
@@ -124,11 +133,11 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 	r.texture1 = tex1
 	r.texture2 = tex2
 
-	r.instance = wgpu.CreateInstance(nil)
+	r.wgpuInstance = wgpu.CreateInstance(nil)
 
-	r.surface = r.window.CreateSurface(r.instance)
+	r.surface = r.window.CreateSurface(r.wgpuInstance)
 
-	adapter, err := r.instance.RequestAdapter(&wgpu.RequestAdapterOptions{
+	adapter, err := r.wgpuInstance.RequestAdapter(&wgpu.RequestAdapterOptions{
 		ForceFallbackAdapter: r.config.ForceFallbackAdapter.Unwrap(),
 		CompatibleSurface:    r.surface,
 	})
@@ -173,6 +182,22 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 		Label:    "Index Buffer",
 		Contents: wgpu.ToBytes(indexData[:]),
 		Usage:    wgpu.BufferUsage_Index,
+	})
+	if err != nil {
+		return r, err
+	}
+
+	r.instances = GenerateInstances()
+
+	instanceData := []instance.Raw{}
+	for _, inst := range r.instances {
+		instanceData = append(instanceData, inst.ToRaw())
+	}
+
+	r.instanceBuf, err = r.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
+		Label:    "Instance Buffer",
+		Contents: wgpu.ToBytes(instanceData[:]),
+		Usage:    wgpu.BufferUsage_Vertex,
 	})
 	if err != nil {
 		return r, err
@@ -253,7 +278,8 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 			Module:     shader,
 			EntryPoint: "vs_main",
 			Buffers: []wgpu.VertexBufferLayout{
-				VertexBufferLayout,
+				vertex.VertexBufferLayout,
+				instance.VertexBufferLayout,
 			},
 		},
 		Primitive: wgpu.PrimitiveState{
@@ -349,9 +375,10 @@ func (r *Renderer) Render(spacePressed bool) error {
 	r.camera.SetBindGroup(renderPass)
 
 	renderPass.SetVertexBuffer(0, r.vertexBuf, 0, wgpu.WholeSize)
+	renderPass.SetVertexBuffer(1, r.instanceBuf, 0, wgpu.WholeSize)
 	renderPass.SetIndexBuffer(r.indexBuf, wgpu.IndexFormat_Uint16, 0, wgpu.WholeSize)
 
-	renderPass.DrawIndexed(uint32(len(indexData)), 1, 0, 0, 0)
+	renderPass.DrawIndexed(uint32(len(indexData)), uint32(len(r.instances)), 0, 0, 0)
 	renderPass.End()
 
 	cmdBuffer, err := encoder.Finish(nil)

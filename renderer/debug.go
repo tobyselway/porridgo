@@ -6,7 +6,7 @@ import (
 )
 
 func (r Renderer) PrintReport() {
-	report := r.instance.GenerateReport()
+	report := r.wgpuInstance.GenerateReport()
 	buf, _ := json.MarshalIndent(report, "", "  ")
 	fmt.Print(string(buf))
 }
