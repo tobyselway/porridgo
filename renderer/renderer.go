@@ -26,6 +26,7 @@ type Renderer struct {
 	indexBuf        *wgpu.Buffer
 	texture1        *texture.Texture
 	texture2        *texture.Texture
+	depthTexture    texture.Texture
 	camera          *camera.Camera
 	instances       []instance.Instance
 	instanceBuf     *wgpu.Buffer
@@ -215,7 +216,7 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 	}
 	defer camera.CleanupBindGroupLayout()
 
-	err = r.texture1.SetupTexture(r.device, r.queue)
+	err = r.texture1.Setup(r.device, r.queue)
 	if err != nil {
 		return r, err
 	}
@@ -224,7 +225,7 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 		return r, err
 	}
 
-	err = r.texture2.SetupTexture(r.device, r.queue)
+	err = r.texture2.Setup(r.device, r.queue)
 	if err != nil {
 		return r, err
 	}
@@ -245,6 +246,16 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 	}
 
 	err = r.camera.CreateBindGroup(r.device)
+	if err != nil {
+		return r, err
+	}
+
+	r.depthTexture = texture.CreateDepthTexture(&texture.DepthConfig{
+		Width:  uint32(width),
+		Height: uint32(height),
+	})
+
+	err = r.depthTexture.Setup(r.device, r.queue)
 	if err != nil {
 		return r, err
 	}
@@ -304,6 +315,17 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 				},
 			},
 		},
+		DepthStencil: &wgpu.DepthStencilState{
+			Format:            texture.DEPTH_FORMAT,
+			DepthWriteEnabled: true,
+			DepthCompare:      wgpu.CompareFunction_Less,
+			StencilFront: wgpu.StencilFaceState{
+				Compare: wgpu.CompareFunction_Never,
+			},
+			StencilBack: wgpu.StencilFaceState{
+				Compare: wgpu.CompareFunction_Never,
+			},
+		},
 	})
 	if err != nil {
 		return r, err
@@ -326,6 +348,15 @@ func (r *Renderer) Resize(width int, height int) {
 		}
 		var err error
 		r.swapChain, err = r.device.CreateSwapChain(r.surface, r.swapChainConfig)
+		if err != nil {
+			panic(err)
+		}
+
+		r.depthTexture = texture.CreateDepthTexture(&texture.DepthConfig{
+			Width:  uint32(width),
+			Height: uint32(height),
+		})
+		err = r.depthTexture.Setup(r.device, r.queue)
 		if err != nil {
 			panic(err)
 		}
@@ -353,6 +384,14 @@ func (r *Renderer) Render(spacePressed bool) error {
 				StoreOp:    wgpu.StoreOp_Store,
 				ClearValue: wgpu.Color{R: 0.2, G: 0.2, B: 0.2, A: 1.0},
 			},
+		},
+		DepthStencilAttachment: &wgpu.RenderPassDepthStencilAttachment{
+			View:            r.depthTexture.View,
+			DepthLoadOp:     wgpu.LoadOp_Clear,
+			DepthClearValue: 1.0,
+			DepthStoreOp:    wgpu.StoreOp_Store,
+			StencilLoadOp:   wgpu.LoadOp_Load,
+			StencilStoreOp:  wgpu.StoreOp_Discard,
 		},
 	})
 	defer renderPass.Release()

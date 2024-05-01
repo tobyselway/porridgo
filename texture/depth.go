@@ -1,24 +1,29 @@
 package texture
 
 import (
-	"porridgo/datatypes"
 	"porridgo/label"
 
 	"github.com/rajveermalviya/go-webgpu/wgpu"
 )
 
-func FromPNG(filename string) (Texture, error) {
-	image, err := datatypes.ImageFromPNG(filename)
-	return Texture{
-		textureType: Image,
-		image:       image,
-	}, err
+const DEPTH_FORMAT = wgpu.TextureFormat_Depth32Float
+
+type DepthConfig struct {
+	Width  uint32
+	Height uint32
 }
 
-func (t *Texture) setupImage(device *wgpu.Device, queue *wgpu.Queue) error {
+func CreateDepthTexture(config *DepthConfig) Texture {
+	return Texture{
+		textureType: Depth,
+		depthConfig: config,
+	}
+}
+
+func (t *Texture) setupDepth(device *wgpu.Device) error {
 	textureExtent := wgpu.Extent3D{
-		Width:              t.image.Width,
-		Height:             t.image.Height,
+		Width:              t.depthConfig.Width,
+		Height:             t.depthConfig.Height,
 		DepthOrArrayLayers: 1,
 	}
 	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
@@ -27,23 +32,9 @@ func (t *Texture) setupImage(device *wgpu.Device, queue *wgpu.Queue) error {
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     wgpu.TextureDimension_2D,
-		Format:        wgpu.TextureFormat_RGBA8UnormSrgb,
-		Usage:         wgpu.TextureUsage_TextureBinding | wgpu.TextureUsage_CopyDst,
+		Format:        DEPTH_FORMAT,
+		Usage:         wgpu.TextureUsage_RenderAttachment | wgpu.TextureUsage_TextureBinding,
 	})
-	if err != nil {
-		return err
-	}
-
-	err = queue.WriteTexture(
-		texture.AsImageCopy(),
-		wgpu.ToBytes(t.image.Pixels[:]),
-		&wgpu.TextureDataLayout{
-			Offset:       0,
-			BytesPerRow:  t.image.Width * 4,
-			RowsPerImage: t.image.Height,
-		},
-		&textureExtent,
-	)
 	if err != nil {
 		return err
 	}
@@ -54,16 +45,16 @@ func (t *Texture) setupImage(device *wgpu.Device, queue *wgpu.Queue) error {
 	}
 
 	sampler, err := device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:          label.Label(t, "Diffuse Sampler"),
+		Label:          label.Label(t, "Sampler"),
 		AddressModeU:   wgpu.AddressMode_ClampToEdge,
 		AddressModeV:   wgpu.AddressMode_ClampToEdge,
 		AddressModeW:   wgpu.AddressMode_ClampToEdge,
 		MagFilter:      wgpu.FilterMode_Linear,
-		MinFilter:      wgpu.FilterMode_Nearest,
+		MinFilter:      wgpu.FilterMode_Linear,
 		MipmapFilter:   wgpu.MipmapFilterMode_Nearest,
+		Compare:        wgpu.CompareFunction_LessEqual,
 		LodMinClamp:    0.0,
-		LodMaxClamp:    32.0,
-		Compare:        wgpu.CompareFunction_Undefined,
+		LodMaxClamp:    100.0,
 		MaxAnisotrophy: 1,
 	})
 	if err != nil {

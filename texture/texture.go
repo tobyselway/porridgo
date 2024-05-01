@@ -6,12 +6,21 @@ import (
 	"github.com/rajveermalviya/go-webgpu/wgpu"
 )
 
+type Type int
+
+const (
+	Image Type = iota
+	Depth
+)
+
 type Texture struct {
-	image     *datatypes.Image
-	Texture   *wgpu.Texture
-	View      *wgpu.TextureView
-	Sampler   *wgpu.Sampler
-	bindGroup *wgpu.BindGroup
+	textureType Type
+	image       *datatypes.Image
+	Texture     *wgpu.Texture
+	View        *wgpu.TextureView
+	Sampler     *wgpu.Sampler
+	bindGroup   *wgpu.BindGroup
+	depthConfig *DepthConfig
 }
 
 func (t *Texture) Cleanup() {
