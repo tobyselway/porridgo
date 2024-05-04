@@ -17,11 +17,13 @@ struct InstanceInput {
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) uv_mapping: vec2<f32>,
+    @location(2) normals: vec3<f32>,
 }
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(1) uv_mapping : vec2<f32>,
+    @location(2) normals: vec3<f32>,
 }
 
 @vertex
@@ -39,6 +41,7 @@ fn vs_main(
     var out: VertexOutput;
     out.uv_mapping = model.uv_mapping;
     out.clip_position = camera.projection * camera.view * model_matrix * vec4<f32>(model.position, 1.0);
+    out.normals = model.normals;
     return out;
 }
 

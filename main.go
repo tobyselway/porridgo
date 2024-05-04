@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"porridgo/camera"
 	"porridgo/datatypes"
+	"porridgo/model"
 	"porridgo/renderer"
 	"porridgo/texture"
 	"porridgo/window"
@@ -34,17 +35,23 @@ func main() {
 		ZFar:     100.0,
 	}
 
-	tex1, err := texture.FromPNG("assets/go.png")
+	tex1, err := texture.FromFile("assets/go.png")
 	if err != nil {
 		panic(err)
 	}
 
-	tex2, err := texture.FromPNG("assets/go2.png")
+	tex2, err := texture.FromFile("assets/go2.png")
 	if err != nil {
 		panic(err)
 	}
 
-	r, err := renderer.CreateRenderer(&w, &cam, &tex1, &tex2, renderer.Config{})
+	// mdl, err := model.FromOBJ("assets/rounded-cube.obj")
+	mdl, err := model.FromOBJ("assets/cube.obj")
+	if err != nil {
+		panic(err)
+	}
+
+	r, err := renderer.CreateRenderer(&w, &cam, &tex1, &tex2, &mdl, renderer.Config{})
 	if err != nil {
 		panic(err)
 	}

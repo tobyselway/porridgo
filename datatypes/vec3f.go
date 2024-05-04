@@ -1,6 +1,7 @@
 package datatypes
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -8,6 +9,10 @@ type Vec3f struct {
 	X float32
 	Y float32
 	Z float32
+}
+
+func (v Vec3f) String() string {
+	return fmt.Sprintf("[%v, %v, %v]", v.X, v.Y, v.Z)
 }
 
 func NewVec3f(x float32, y float32, z float32) Vec3f {

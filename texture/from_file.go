@@ -7,8 +7,8 @@ import (
 	"github.com/rajveermalviya/go-webgpu/wgpu"
 )
 
-func FromPNG(filename string) (Texture, error) {
-	image, err := datatypes.ImageFromPNG(filename)
+func FromFile(filename string) (Texture, error) {
+	image, err := datatypes.ImageFromFile(filename)
 	return Texture{
 		textureType: Image,
 		image:       image,

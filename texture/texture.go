@@ -24,8 +24,16 @@ type Texture struct {
 }
 
 func (t *Texture) Cleanup() {
-	defer t.Texture.Release()
-	defer t.View.Release()
-	defer t.Sampler.Release()
-	defer t.bindGroup.Release()
+	if t.Texture != nil {
+		defer t.Texture.Release()
+	}
+	if t.View != nil {
+		defer t.View.Release()
+	}
+	if t.Sampler != nil {
+		defer t.Sampler.Release()
+	}
+	if t.bindGroup != nil {
+		defer t.bindGroup.Release()
+	}
 }
