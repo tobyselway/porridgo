@@ -56,5 +56,6 @@ func (c *Controller) ProcessMouse(x float32, y float32) {
 
 func (c *Controller) UpdateCamera() {
 	c.Camera.Position = c.Camera.Position.Add(c.velocity)
-	c.Camera.Rotation = c.Camera.Rotation.Add(c.rVel)
+	c.Camera.Yaw += c.rVel.X
+	c.Camera.Pitch += c.rVel.Y
 }

@@ -28,7 +28,8 @@ func main() {
 
 	cam := camera.Camera{
 		Position: datatypes.NewVec3f(0.0, 0.0, -2.0),
-		Rotation: datatypes.NewVec3f(0.0, 0.0, 0.0),
+		Pitch:    0.0,
+		Yaw:      0.0,
 		Aspect:   float32(w.Width) / float32(w.Height),
 		FovY:     45.0,
 		ZNear:    0.1,

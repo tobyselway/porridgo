@@ -9,7 +9,8 @@ import (
 
 type Camera struct {
 	Position  datatypes.Vec3f
-	Rotation  datatypes.Vec3f
+	Pitch     float32
+	Yaw       float32
 	Aspect    float32
 	FovY      float32
 	ZNear     float32
@@ -32,11 +33,9 @@ var OPENGL_TO_WGPU_MATRIX datatypes.Mat4f = datatypes.NewMat4f(
 )
 
 func (c Camera) BuildViewMatrix() datatypes.Mat4f {
-	return datatypes.Transformation(
-		datatypes.NewVec3f(1.0, 1.0, 1.0),
-		c.Position.MulScalar(-1.0),
-		c.Rotation.MulScalar(-1.0),
-	)
+	return datatypes.RotationX(-c.Pitch).
+		Mul(datatypes.RotationY(-c.Yaw)).
+		Mul(datatypes.Translation(c.Position.MulScalar(-1.0)))
 }
 
 func (c Camera) BuildProjectionMatrix() (datatypes.Mat4f, error) {
