@@ -7,7 +7,7 @@ type Mesh struct {
 	VertexBuffer *wgpu.Buffer
 	IndexBuffer  *wgpu.Buffer
 	NumElements  uint32
-	Material     uint32
+	Material     *uint32
 	Vertices     []Vertex
 	Indices      []uint32
 }

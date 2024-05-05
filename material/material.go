@@ -6,9 +6,11 @@ import (
 
 type Material struct {
 	Name           string
-	DiffuseTexture texture.Texture
+	DiffuseTexture *texture.Texture
 }
 
 func (m *Material) Cleanup() {
-	defer m.DiffuseTexture.Cleanup()
+	if m.DiffuseTexture != nil {
+		defer m.DiffuseTexture.Cleanup()
+	}
 }

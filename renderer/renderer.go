@@ -155,15 +155,15 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 	r.instances = GenerateInstances()
 
 	instanceData := []instance.Raw{
-		instance.Instance{
-			Position: datatypes.NewVec3f(0.0, 0.0, 0.0),
-			Scale:    datatypes.NewVec3f(1.0, 1.0, 1.0),
-			Rotation: datatypes.NewVec3f(0.0, 0.0, 0.0),
-		}.ToRaw(),
+		// instance.Instance{
+		// 	Position: datatypes.NewVec3f(0.0, 0.0, 0.0),
+		// 	Scale:    datatypes.NewVec3f(1.0, 1.0, 1.0),
+		// 	Rotation: datatypes.NewVec3f(0.0, 0.0, 0.0),
+		// }.ToRaw(),
 	}
-	// for _, inst := range r.instances {
-	// 	instanceData = append(instanceData, inst.ToRaw())
-	// }
+	for _, inst := range r.instances {
+		instanceData = append(instanceData, inst.ToRaw())
+	}
 
 	r.instanceBuf, err = r.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
 		Label:    "Instance Buffer",
@@ -349,7 +349,7 @@ func (r *Renderer) Render(spacePressed bool) error {
 				View:       nextTexture,
 				LoadOp:     wgpu.LoadOp_Clear,
 				StoreOp:    wgpu.StoreOp_Store,
-				ClearValue: wgpu.Color{R: 0.2, G: 0.2, B: 0.2, A: 1.0},
+				ClearValue: wgpu.Color{R: 0.1, G: 0.1, B: 0.1, A: 1.0},
 			},
 		},
 		DepthStencilAttachment: &wgpu.RenderPassDepthStencilAttachment{
@@ -365,25 +365,14 @@ func (r *Renderer) Render(spacePressed bool) error {
 
 	renderPass.SetPipeline(r.renderPipeline)
 
-	// for renderable := range renderables {
-	// 	renderable.UpdateUniforms(r.queue)
-	// 	renderable.SetBindGroups(renderPass)
-	// }
-
-	if spacePressed {
-		r.texture2.SetBindGroup(renderPass)
-	} else {
-		r.texture1.SetBindGroup(renderPass)
-	}
-
 	r.camera.UpdateUniform()
 	r.camera.WriteBuffer(r.queue)
 	r.camera.SetBindGroup(renderPass)
 
 	renderPass.SetVertexBuffer(1, r.instanceBuf, 0, wgpu.WholeSize)
 
-	// r.mdl.Meshes[0].DrawInstanced(uint32(len(r.instances)), renderPass)
-	r.mdl.Meshes[0].Draw(renderPass)
+	r.mdl.DrawInstanced(uint32(len(r.instances)), renderPass)
+	// r.mdl.Draw(renderPass)
 
 	renderPass.End()
 

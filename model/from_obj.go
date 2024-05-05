@@ -15,37 +15,43 @@ func FromOBJ(filename string) (Model, error) {
 	name := filename
 	filename, err := filepath.Abs(filename)
 	if err != nil {
-		return Model{}, fmt.Errorf("determining absolute path: %w", err)
+		return Model{}, fmt.Errorf("determining absolute file path for obj %s: %w", name, err)
 	}
 
 	obj, err := gwob.NewObjFromFile(filename, &gwob.ObjParserOptions{})
 	if err != nil {
-		return Model{}, fmt.Errorf("loading obj: %w", err)
-	}
-
-	mtlFilename := filepath.Join(filepath.Dir(filename), obj.Mtllib)
-
-	mtl, err := gwob.ReadMaterialLibFromFile(mtlFilename, &gwob.ObjParserOptions{})
-	if err != nil {
-		return Model{}, fmt.Errorf("loading obj mtl: %w", err)
+		return Model{}, fmt.Errorf("loading obj %s: %w", name, err)
 	}
 
 	materials := []material.Material{}
-
 	materialsNameToIdx := map[string]uint32{}
 
-	for name, mtl := range mtl.Lib {
-		diffuseTextureFilename := filepath.Join(filepath.Dir(filename), mtl.MapKd)
-		diffuseTexture, err := texture.FromFile(diffuseTextureFilename)
+	if obj.Mtllib != "" {
+		mtlFilename := filepath.Join(filepath.Dir(filename), obj.Mtllib)
+
+		mtl, err := gwob.ReadMaterialLibFromFile(mtlFilename, &gwob.ObjParserOptions{})
 		if err != nil {
-			return Model{}, fmt.Errorf("loading obj mtl diffuse map: %w", err)
+			return Model{}, fmt.Errorf("loading obj %s: mtl file: %w", name, err)
 		}
 
-		materials = append(materials, material.Material{
-			Name:           name,
-			DiffuseTexture: diffuseTexture,
-		})
-		materialsNameToIdx[name] = uint32(len(materials)) - 1
+		for mtlName, mtl := range mtl.Lib {
+			var diffuseTexture *texture.Texture = nil
+			if mtl.MapKd != "" {
+				diffuseTextureFilename := filepath.Join(filepath.Dir(filename), mtl.MapKd)
+				dt, err := texture.FromFile(diffuseTextureFilename)
+				diffuseTexture = &dt
+				if err != nil {
+					return Model{}, fmt.Errorf("loading obj %s: mtl %s: diffuse map: %w", name, mtlName, err)
+				}
+			}
+
+			materials = append(materials, material.Material{
+				Name:           mtlName,
+				DiffuseTexture: diffuseTexture,
+			})
+			materialsNameToIdx[mtlName] = uint32(len(materials)) - 1
+		}
+
 	}
 
 	meshes := []mesh.Mesh{}
@@ -78,10 +84,17 @@ func FromOBJ(filename string) (Model, error) {
 			indices = append(indices, uint32(index))
 		}
 
+		var materialIdx *uint32 = nil
+
+		idx, ok := materialsNameToIdx[group.Usemtl]
+		if ok {
+			materialIdx = &idx
+		}
+
 		meshes = append(meshes, mesh.Mesh{
 			Name:        group.Name,
 			NumElements: uint32(group.IndexCount),
-			Material:    materialsNameToIdx[group.Usemtl],
+			Material:    materialIdx,
 			Vertices:    vertices,
 			Indices:     indices,
 		})
