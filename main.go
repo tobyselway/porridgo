@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"porridgo/camera"
 	"porridgo/datatypes"
+	"porridgo/light"
 	"porridgo/model"
 	"porridgo/renderer"
-	"porridgo/texture"
 	"porridgo/window"
 	glfw_window "porridgo/window/glfw"
 	"strings"
@@ -36,23 +36,18 @@ func main() {
 		ZFar:     100.0,
 	}
 
-	tex1, err := texture.FromFile("assets/go.png")
-	if err != nil {
-		panic(err)
-	}
-
-	tex2, err := texture.FromFile("assets/go2.png")
-	if err != nil {
-		panic(err)
-	}
-
 	// mdl, err := model.FromOBJ("assets/rounded-cube.obj")
 	mdl, err := model.FromOBJ("assets/cube.obj")
 	if err != nil {
 		panic(err)
 	}
 
-	r, err := renderer.CreateRenderer(&w, &cam, &tex1, &tex2, &mdl, renderer.Config{})
+	sun := light.Light{
+		Position: datatypes.NewVec3f(2.0, 2.0, 2.0),
+		Color:    datatypes.NewVec3f(1.0, 1.0, 1.0),
+	}
+
+	r, err := renderer.CreateRenderer(&w, &cam, &sun, &mdl, renderer.Config{})
 	if err != nil {
 		panic(err)
 	}

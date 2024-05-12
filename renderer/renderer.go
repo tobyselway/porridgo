@@ -1,12 +1,16 @@
 package renderer
 
 import (
+	"embed"
 	_ "embed"
 	"porridgo/camera"
 	"porridgo/datatypes"
 	"porridgo/instance"
+	"porridgo/light"
 	"porridgo/mesh"
 	"porridgo/model"
+	"porridgo/pipeline"
+	"porridgo/shader"
 	"porridgo/texture"
 	"porridgo/window"
 
@@ -14,22 +18,22 @@ import (
 )
 
 type Renderer struct {
-	config          Config
-	window          window.Window
-	wgpuInstance    *wgpu.Instance
-	surface         *wgpu.Surface
-	swapChain       *wgpu.SwapChain
-	device          *wgpu.Device
-	queue           *wgpu.Queue
-	swapChainConfig *wgpu.SwapChainDescriptor
-	renderPipeline  *wgpu.RenderPipeline
-	texture1        *texture.Texture
-	texture2        *texture.Texture
-	depthTexture    texture.Texture
-	camera          *camera.Camera
-	instances       []instance.Instance
-	instanceBuf     *wgpu.Buffer
-	mdl             *model.Model
+	config              Config
+	window              window.Window
+	wgpuInstance        *wgpu.Instance
+	surface             *wgpu.Surface
+	swapChain           *wgpu.SwapChain
+	device              *wgpu.Device
+	queue               *wgpu.Queue
+	swapChainConfig     *wgpu.SwapChainDescriptor
+	renderPipeline      *pipeline.Pipeline
+	lightRenderPipeline *pipeline.Pipeline
+	depthTexture        texture.Texture
+	camera              *camera.Camera
+	instances           []instance.Instance
+	instanceBuf         *wgpu.Buffer
+	mdl                 *model.Model
+	sun                 *light.Light
 }
 
 func (r *Renderer) Cleanup() {
@@ -37,20 +41,16 @@ func (r *Renderer) Cleanup() {
 		r.camera.Cleanup()
 		r.camera = nil
 	}
-	if r.texture1 != nil {
-		r.texture1.Cleanup()
-		r.texture1 = nil
-	}
-	if r.texture2 != nil {
-		r.texture2.Cleanup()
-		r.texture2 = nil
+	if r.sun != nil {
+		r.sun.Cleanup()
+		r.sun = nil
 	}
 	if r.mdl != nil {
 		r.mdl.Cleanup()
 		r.mdl = nil
 	}
 	if r.renderPipeline != nil {
-		r.renderPipeline.Release()
+		r.renderPipeline.Cleanup()
 		r.renderPipeline = nil
 	}
 	if r.swapChain != nil {
@@ -74,8 +74,11 @@ func (r *Renderer) Cleanup() {
 	}
 }
 
-//go:embed shaders/shader.wgsl
-var shader string
+// Any fs.FS filesystem can be provided to load shader files from.
+// In this case an embed.FS is used to load shaders at compile-time.
+//
+//go:embed shaders
+var embedShaders embed.FS
 
 const NUM_INSTANCES_PER_ROW uint32 = 10
 
@@ -99,7 +102,7 @@ func GenerateInstances() []instance.Instance {
 	return instances
 }
 
-func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, tex2 *texture.Texture, mdl *model.Model, config Config) (r *Renderer, err error) {
+func CreateRenderer(w window.Window, cam *camera.Camera, sun *light.Light, mdl *model.Model, config Config) (r *Renderer, err error) {
 	defer func() {
 		if err != nil {
 			r.Cleanup()
@@ -112,8 +115,7 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 	}
 
 	r.camera = cam
-	r.texture1 = tex1
-	r.texture2 = tex2
+	r.sun = sun
 	r.mdl = mdl
 
 	r.wgpuInstance = wgpu.CreateInstance(nil)
@@ -186,33 +188,23 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 	}
 	defer camera.CleanupBindGroupLayout()
 
-	err = r.texture1.Setup(r.device, r.queue)
+	err = light.SetupBindGroupLayout(r.device)
 	if err != nil {
 		return r, err
 	}
-
-	err = r.texture2.Setup(r.device, r.queue)
-	if err != nil {
-		return r, err
-	}
+	defer light.CleanupBindGroupLayout()
 
 	err = r.mdl.Setup(r.device, r.queue)
 	if err != nil {
 		return r, err
 	}
 
-	r.camera.SetupUniform()
-	err = r.camera.UpdateUniform()
+	err = r.camera.Setup(r.device, r.queue)
 	if err != nil {
 		return r, err
 	}
 
-	err = r.camera.SetupBuffer(r.device)
-	if err != nil {
-		return r, err
-	}
-
-	err = r.camera.CreateBindGroup(r.device)
+	err = r.sun.Setup(r.device, r.queue)
 	if err != nil {
 		return r, err
 	}
@@ -227,73 +219,50 @@ func CreateRenderer(w window.Window, cam *camera.Camera, tex1 *texture.Texture, 
 		return r, err
 	}
 
-	shader, err := r.device.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
-		Label:          "shader.wgsl",
-		WGSLDescriptor: &wgpu.ShaderModuleWGSLDescriptor{Code: shader},
-	})
+	shd, err := shader.FromFile("shaders/shader.wgsl", embedShaders)
 	if err != nil {
 		return r, err
 	}
-	defer shader.Release()
 
-	renderPipelineLayout, err := r.device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
-		Label: "Render Pipeline Layout",
+	r.renderPipeline = &pipeline.Pipeline{
+		Name:           "Render",
+		VertexShader:   shd,
+		FragmentShader: shd,
 		BindGroupLayouts: []*wgpu.BindGroupLayout{
 			texture.BindGroupLayout,
 			camera.BindGroupLayout,
+			light.BindGroupLayout,
 		},
-		PushConstantRanges: []wgpu.PushConstantRange{},
-	})
+		VertexBufferLayouts: []wgpu.VertexBufferLayout{
+			mesh.VertexBufferLayout,
+			instance.VertexBufferLayout,
+		},
+	}
+
+	err = r.renderPipeline.Setup(r.device, r.swapChainConfig)
 	if err != nil {
 		return r, err
 	}
-	defer renderPipelineLayout.Release()
 
-	r.renderPipeline, err = r.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
-		Label:  "Render Pipeline",
-		Layout: renderPipelineLayout,
-		Vertex: wgpu.VertexState{
-			Module:     shader,
-			EntryPoint: "vs_main",
-			Buffers: []wgpu.VertexBufferLayout{
-				mesh.VertexBufferLayout,
-				instance.VertexBufferLayout,
-			},
+	shdLight, err := shader.FromFile("shaders/light.wgsl", embedShaders)
+	if err != nil {
+		return r, err
+	}
+
+	r.lightRenderPipeline = &pipeline.Pipeline{
+		Name:           "Light",
+		VertexShader:   shdLight,
+		FragmentShader: shdLight,
+		BindGroupLayouts: []*wgpu.BindGroupLayout{
+			camera.BindGroupLayout,
+			light.BindGroupLayout,
 		},
-		Primitive: wgpu.PrimitiveState{
-			Topology:         wgpu.PrimitiveTopology_TriangleList,
-			StripIndexFormat: wgpu.IndexFormat_Undefined,
-			FrontFace:        wgpu.FrontFace_CCW,
-			CullMode:         wgpu.CullMode_None,
+		VertexBufferLayouts: []wgpu.VertexBufferLayout{
+			mesh.VertexBufferLayout,
 		},
-		Multisample: wgpu.MultisampleState{
-			Count:                  1,
-			Mask:                   0xFFFFFFFF,
-			AlphaToCoverageEnabled: false,
-		},
-		Fragment: &wgpu.FragmentState{
-			Module:     shader,
-			EntryPoint: "fs_main",
-			Targets: []wgpu.ColorTargetState{
-				{
-					Format:    r.swapChainConfig.Format,
-					Blend:     &wgpu.BlendState_Replace,
-					WriteMask: wgpu.ColorWriteMask_All,
-				},
-			},
-		},
-		DepthStencil: &wgpu.DepthStencilState{
-			Format:            texture.DEPTH_FORMAT,
-			DepthWriteEnabled: true,
-			DepthCompare:      wgpu.CompareFunction_Less,
-			StencilFront: wgpu.StencilFaceState{
-				Compare: wgpu.CompareFunction_Never,
-			},
-			StencilBack: wgpu.StencilFaceState{
-				Compare: wgpu.CompareFunction_Never,
-			},
-		},
-	})
+	}
+
+	err = r.lightRenderPipeline.Setup(r.device, r.swapChainConfig)
 	if err != nil {
 		return r, err
 	}
@@ -363,16 +332,16 @@ func (r *Renderer) Render(spacePressed bool) error {
 	})
 	defer renderPass.Release()
 
-	renderPass.SetPipeline(r.renderPipeline)
-
-	r.camera.UpdateUniform()
-	r.camera.WriteBuffer(r.queue)
-	r.camera.SetBindGroup(renderPass)
-
+	r.renderPipeline.Prepare(renderPass)
+	r.camera.Prepare(1, r.queue, renderPass)
+	r.sun.Prepare(2, r.queue, renderPass)
 	renderPass.SetVertexBuffer(1, r.instanceBuf, 0, wgpu.WholeSize)
-
 	r.mdl.DrawInstanced(uint32(len(r.instances)), renderPass)
-	// r.mdl.Draw(renderPass)
+
+	r.lightRenderPipeline.Prepare(renderPass)
+	r.camera.Prepare(0, r.queue, renderPass)
+	r.sun.Prepare(1, r.queue, renderPass)
+	r.sun.Draw(r.mdl, renderPass)
 
 	renderPass.End()
 
