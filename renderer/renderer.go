@@ -136,7 +136,7 @@ func CreateRenderer(w window.Window, cam *camera.Camera, sun *light.Light, mdl *
 	r.surface = r.window.CreateSurface(r.wgpuInstance)
 
 	adapter, err := r.wgpuInstance.RequestAdapter(&wgpu.RequestAdapterOptions{
-		ForceFallbackAdapter: r.config.ForceFallbackAdapter.Unwrap(),
+		ForceFallbackAdapter: *r.config.ForceFallbackAdapter,
 		CompatibleSurface:    r.surface,
 	})
 	if err != nil {

@@ -2,17 +2,16 @@ package renderer
 
 import (
 	"os"
-
-	"github.com/LNMMusic/optional"
 )
 
 type Config struct {
-	ForceFallbackAdapter optional.Option[bool]
+	ForceFallbackAdapter *bool
 }
 
 func fillDefault(config Config) Config {
-	if !config.ForceFallbackAdapter.IsSome() {
-		config.ForceFallbackAdapter = optional.Some(os.Getenv("WGPU_FORCE_FALLBACK_ADAPTER") == "1")
+	if config.ForceFallbackAdapter == nil {
+		enabled := os.Getenv("WGPU_FORCE_FALLBACK_ADAPTER") == "1"
+		config.ForceFallbackAdapter = &enabled
 	}
 	return config
 }
