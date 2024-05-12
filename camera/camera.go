@@ -33,8 +33,7 @@ var OPENGL_TO_WGPU_MATRIX datatypes.Mat4f = datatypes.NewMat4f(
 )
 
 func (c Camera) BuildViewMatrix() datatypes.Mat4f {
-	return datatypes.RotationX(-c.Pitch).
-		Mul(datatypes.RotationY(-c.Yaw)).
+	return datatypes.Euler(datatypes.NewVec3f(c.Pitch, c.Yaw, 0.0)).ToMatrix().
 		Mul(datatypes.Translation(c.Position.MulScalar(-1.0)))
 }
 

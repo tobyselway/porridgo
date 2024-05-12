@@ -8,6 +8,6 @@ type Raw struct {
 
 func (inst Instance) ToRaw() Raw {
 	return Raw{
-		Model: datatypes.Transformation(inst.Scale, inst.Position, inst.Rotation),
+		Model: datatypes.TransformationQuat(inst.Scale, inst.Position, inst.Rotation),
 	}
 }

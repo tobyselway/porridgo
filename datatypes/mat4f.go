@@ -80,6 +80,10 @@ func Transformation(scale Vec3f, translation Vec3f, rotation Vec3f) Mat4f {
 	return Scale(scale).Mul(Rotation(rotation)).Mul(Translation(translation))
 }
 
+func TransformationQuat(scale Vec3f, translation Vec3f, rotation Quaternion) Mat4f {
+	return Scale(scale).Mul(rotation.ToMatrix()).Mul(Translation(translation))
+}
+
 func Orthographic(left float32, right float32, bottom float32, top float32, near float32, far float32) Mat4f {
 	zero := float32(0.0)
 	one := float32(1.0)

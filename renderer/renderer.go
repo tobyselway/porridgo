@@ -7,6 +7,7 @@ import (
 	"porridgo/datatypes"
 	"porridgo/instance"
 	"porridgo/light"
+	"porridgo/material"
 	"porridgo/mesh"
 	"porridgo/model"
 	"porridgo/pipeline"
@@ -34,6 +35,7 @@ type Renderer struct {
 	instanceBuf         *wgpu.Buffer
 	mdl                 *model.Model
 	sun                 *light.Light
+	defaultMaterial     *material.Material
 }
 
 func (r *Renderer) Cleanup() {
@@ -95,7 +97,7 @@ func GenerateInstances() []instance.Instance {
 			instances = append(instances, instance.Instance{
 				Position: position,
 				Scale:    datatypes.NewVec3f(1.0, 1.0, 1.0),
-				Rotation: datatypes.NewVec3f(0.0, 0.0, 0.0),
+				Rotation: datatypes.Euler(datatypes.NewVec3f(0.0, 0.0, 0.0)),
 			})
 		}
 	}
@@ -117,6 +119,16 @@ func CreateRenderer(w window.Window, cam *camera.Camera, sun *light.Light, mdl *
 	r.camera = cam
 	r.sun = sun
 	r.mdl = mdl
+
+	tex, err := texture.FromFile("assets/go.png")
+	if err != nil {
+		return r, err
+	}
+
+	r.defaultMaterial = &material.Material{
+		Name:           "Default",
+		DiffuseTexture: &tex,
+	}
 
 	r.wgpuInstance = wgpu.CreateInstance(nil)
 
@@ -193,6 +205,11 @@ func CreateRenderer(w window.Window, cam *camera.Camera, sun *light.Light, mdl *
 		return r, err
 	}
 	defer light.CleanupBindGroupLayout()
+
+	err = r.defaultMaterial.Setup(r.device, r.queue)
+	if err != nil {
+		return r, err
+	}
 
 	err = r.mdl.Setup(r.device, r.queue)
 	if err != nil {
@@ -337,6 +354,7 @@ func (r *Renderer) Render(spacePressed bool) error {
 	r.sun.Prepare(2, r.queue, renderPass)
 	renderPass.SetVertexBuffer(1, r.instanceBuf, 0, wgpu.WholeSize)
 	r.mdl.DrawInstanced(uint32(len(r.instances)), renderPass)
+	// r.mdl.Meshes[0].Draw(r.defaultMaterial, renderPass)
 
 	r.lightRenderPipeline.Prepare(renderPass)
 	r.camera.Prepare(0, r.queue, renderPass)
