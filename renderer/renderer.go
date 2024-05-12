@@ -95,10 +95,16 @@ func GenerateInstances() []instance.Instance {
 			x := SPACE_BETWEEN * (float32(i) - float32(NUM_INSTANCES_PER_ROW)/2.0)
 			z := SPACE_BETWEEN * (float32(j) - float32(NUM_INSTANCES_PER_ROW)/2.0)
 			position := datatypes.NewVec3f(x, 0.0, z)
+			var rotation datatypes.Quaternion
+			if position.IsZero() {
+				rotation = datatypes.AngleAxis(datatypes.NewVec3f(0, 0, 1), calc.Deg(0))
+			} else {
+				rotation = datatypes.AngleAxis(position.Normalize(), calc.Deg(45.0))
+			}
 			instances = append(instances, instance.Instance{
 				Position: position,
 				Scale:    datatypes.NewVec3f(1.0, 1.0, 1.0),
-				Rotation: datatypes.AngleAxis(datatypes.NewVec3f(0.0, 1.0, 0.0), calc.Deg(float32(i)/float32(NUM_INSTANCES_PER_ROW)*360.0)),
+				Rotation: rotation,
 			})
 		}
 	}

@@ -19,7 +19,7 @@ func SetupBindGroupLayout(device *wgpu.Device) error {
 		Entries: []wgpu.BindGroupLayoutEntry{
 			{
 				Binding:    0,
-				Visibility: wgpu.ShaderStage_Vertex,
+				Visibility: wgpu.ShaderStage_Vertex | wgpu.ShaderStage_Fragment,
 				Buffer: wgpu.BufferBindingLayout{
 					Type:             wgpu.BufferBindingType_Uniform,
 					HasDynamicOffset: false,

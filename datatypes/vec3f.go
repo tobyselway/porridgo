@@ -89,3 +89,16 @@ func (vec Vec3f) NormalizeTo(magnitude float32) Vec3f {
 func (vec Vec3f) Normalize() Vec3f {
 	return vec.NormalizeTo(1.0)
 }
+
+func (vec Vec3f) IsZero() bool {
+	return vec.X == 0 && vec.Y == 0 && vec.Z == 0
+}
+
+func (vec Vec3f) ToVec4f() Vec4f {
+	return NewVec4f(
+		vec.X,
+		vec.Y,
+		vec.Z,
+		1,
+	)
+}
