@@ -15,3 +15,11 @@ func NewVec4f(x float32, y float32, z float32, w float32) Vec4f {
 		W: w,
 	}
 }
+
+func (vec Vec4f) ToVec3f() Vec3f {
+	return NewVec3f(
+		vec.X,
+		vec.Y,
+		vec.Z,
+	)
+}

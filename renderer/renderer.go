@@ -3,6 +3,7 @@ package renderer
 import (
 	"embed"
 	_ "embed"
+	"porridgo/calc"
 	"porridgo/camera"
 	"porridgo/datatypes"
 	"porridgo/instance"
@@ -97,7 +98,7 @@ func GenerateInstances() []instance.Instance {
 			instances = append(instances, instance.Instance{
 				Position: position,
 				Scale:    datatypes.NewVec3f(1.0, 1.0, 1.0),
-				Rotation: datatypes.Euler(datatypes.NewVec3f(0.0, 0.0, 0.0)),
+				Rotation: datatypes.AngleAxis(datatypes.NewVec3f(0.0, 1.0, 0.0), calc.Deg(float32(i)/float32(NUM_INSTANCES_PER_ROW)*360.0)),
 			})
 		}
 	}

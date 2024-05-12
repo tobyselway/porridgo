@@ -178,3 +178,11 @@ func (mat Mat4f) Mul(other Mat4f) Mat4f {
 		),
 	)
 }
+
+func (mat Mat4f) ToMat3f() Mat3f {
+	return NewMat3f(
+		mat.X.ToVec3f(),
+		mat.Y.ToVec3f(),
+		mat.Z.ToVec3f(),
+	)
+}
