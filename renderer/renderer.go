@@ -135,6 +135,7 @@ func CreateRenderer(w window.Window, cam *camera.Camera, sun *light.Light, mdl *
 	r.defaultMaterial = &material.Material{
 		Name:           "Default",
 		DiffuseTexture: &tex,
+		NormalTexture:  &tex,
 	}
 
 	r.wgpuInstance = wgpu.CreateInstance(nil)
@@ -195,11 +196,11 @@ func CreateRenderer(w window.Window, cam *camera.Camera, sun *light.Light, mdl *
 		return r, err
 	}
 
-	err = texture.SetupBindGroupLayout(r.device)
+	err = material.SetupBindGroupLayout(r.device)
 	if err != nil {
 		return r, err
 	}
-	defer texture.CleanupBindGroupLayout()
+	defer material.CleanupBindGroupLayout()
 
 	err = camera.SetupBindGroupLayout(r.device)
 	if err != nil {
@@ -253,7 +254,7 @@ func CreateRenderer(w window.Window, cam *camera.Camera, sun *light.Light, mdl *
 		VertexShader:   shd,
 		FragmentShader: shd,
 		BindGroupLayouts: []*wgpu.BindGroupLayout{
-			texture.BindGroupLayout,
+			material.BindGroupLayout,
 			camera.BindGroupLayout,
 			light.BindGroupLayout,
 		},

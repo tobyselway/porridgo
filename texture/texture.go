@@ -19,7 +19,6 @@ type Texture struct {
 	Texture     *wgpu.Texture
 	View        *wgpu.TextureView
 	Sampler     *wgpu.Sampler
-	bindGroup   *wgpu.BindGroup
 	depthConfig *DepthConfig
 }
 
@@ -32,8 +31,5 @@ func (t *Texture) Cleanup() {
 	}
 	if t.Sampler != nil {
 		defer t.Sampler.Release()
-	}
-	if t.bindGroup != nil {
-		defer t.bindGroup.Release()
 	}
 }

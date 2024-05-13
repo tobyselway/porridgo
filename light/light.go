@@ -15,6 +15,10 @@ type Light struct {
 }
 
 func (l *Light) Cleanup() {
-	defer l.bindGroup.Release()
-	defer l.buffer.Release()
+	if l.bindGroup != nil {
+		defer l.bindGroup.Release()
+	}
+	if l.buffer != nil {
+		defer l.buffer.Release()
+	}
 }

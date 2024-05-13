@@ -21,8 +21,12 @@ type Camera struct {
 }
 
 func (c *Camera) Cleanup() {
-	defer c.bindGroup.Release()
-	defer c.buffer.Release()
+	if c.bindGroup != nil {
+		defer c.bindGroup.Release()
+	}
+	if c.buffer != nil {
+		defer c.buffer.Release()
+	}
 }
 
 var OPENGL_TO_WGPU_MATRIX datatypes.Mat4f = datatypes.NewMat4f(

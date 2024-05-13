@@ -14,7 +14,6 @@ func (t *Texture) Setup(device *wgpu.Device, queue *wgpu.Queue) error {
 		if err != nil {
 			return fmt.Errorf("setting up texture %s: %w", t.image.Filename, err)
 		}
-		err = t.CreateBindGroup(device)
 	case Depth:
 		err = t.setupDepth(device)
 	}

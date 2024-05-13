@@ -45,9 +45,20 @@ func FromOBJ(filename string) (Model, error) {
 				}
 			}
 
+			var normalTexture *texture.Texture = nil
+			if mtl.Bump != "" {
+				normalTextureFilename := filepath.Join(filepath.Dir(filename), mtl.Bump)
+				dt, err := texture.FromFile(normalTextureFilename)
+				normalTexture = &dt
+				if err != nil {
+					return Model{}, fmt.Errorf("loading obj %s: mtl %s: normal map: %w", name, mtlName, err)
+				}
+			}
+
 			materials = append(materials, material.Material{
 				Name:           mtlName,
 				DiffuseTexture: diffuseTexture,
+				NormalTexture:  normalTexture,
 			})
 			materialsNameToIdx[mtlName] = uint32(len(materials)) - 1
 		}
